@@ -63,72 +63,24 @@
 
 package OpenCA::Configuration;
 
-use strict;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
-
-require Exporter;
-require AutoLoader;
-
-@ISA = qw(Exporter AutoLoader);
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-@EXPORT = qw(
-	
-);
-$VERSION = '1.2';
-
+$VERSION = '1.3.14';
 
 # Preloaded methods go here.
 
-# Autoload methods go after =cut, and are processed by the autosplit program.
-
-1;
-__END__
-# Below is the stub of documentation for your module. You better edit it!
-
-=head1 NAME
-
-OpenCA::Configuration - Perl extension for blah blah blah
-
-=head1 SYNOPSIS
-
-  use OpenCA::Configuration;
-  blah blah blah
-
-=head1 DESCRIPTION
-
-Stub documentation for OpenCA::Configuration was created by h2xs. It looks like the
-author of the extension was negligent enough to leave the stub
-unedited.
-
-Blah blah blah.
-
-=head1 AUTHOR
-
-A. U. Thor, a.u.thor@a.galaxy.far.far.away
-
-=head1 SEE ALSO
-
-perl(1).
-
-=cut
-
 ## Define Error Messages for the Configuration Manager Errors
-my $cgiManager  = 'Massimiliano Pala <madwolf@comune.modena.it>';
-my $configDim   = 0;
-
 my @configLines = ();
 my @configDB    = ();
-my @errorCodes  = { '100', 'Configuration File Not Found',
-		    '101', 'Keyword error.'}; 
 
 ## Create an instance of the Class
 sub new {
-	my $self = {};
+	my $that = shift;
+	my $class = ref($that) || $that;
+
+	my $self = { configLines => [ @configLines ],
+		     configDB => [ @configDB ] };
 	bless $self;
 
-	$fileName = $keys[1];
+	$fileName = $keys[0];
 	if( "$fileName" ne "" ) {
 		my $ret = $self->loadCfg ( $fileName );
 		return undef if ( not $ret );
@@ -142,18 +94,23 @@ sub loadCfg {
 	my $self = shift;
 	my $ret = 0;
 	my @keys; 
+	my @configLines;
 	@keys = @_;
 
 	$fileName = $keys[0];
 
 	open( FD, "$fileName" ) || return undef;
 	while( $temp = <FD> ) {
-		@configLines = ( @configLines, $temp );
+		push @configLines, $temp;
 	}
 	close(FD);
 
-	$ret = $self->parsecfg( @configLines );
-	return $ret;
+	if( $self->parsecfg( @configLines ) ) {
+		$self->{configLines} = [ @configLines ];
+		return 1;
+	} else {
+		return;
+	}
 }
 
 ## Parsing Function
@@ -178,6 +135,7 @@ sub parsecfg {
 		next if ($line =~ /\#.*/)||($line eq "")||($line =~ /HASH.*/);
 		$line =~ s/#.*//;
 		$line =~ s/^[\s]*//;
+		$line =~ s/(\r|\n)//g;
 
 		## Get the Parameter Name
 		( $paramName ) = 
@@ -196,17 +154,15 @@ sub parsecfg {
 			$line =~ s/^[\s]*//;
 
 			if ( $line =~ /^\"/ ) {
-				( $param ) = ( $line =~ /^\"([^\"]*)/ );
+			 	( $param ) = ( $line =~ /^\"(.*?)\"/ );
+			 	$line =~ s/^\".*?\"//;
 			} else {
-				( $param ) = ( $line =~ /^([\S]+)/ );
+			 	( $param ) = ( $line =~ /^([\S]+)/ );
+			 	$line =~ s/^([\S]+)//;
 			};
 
 			@values = ( @values, $param );
 			
-			$param =~ s/\$/\\\$/g;
-			$line =~ s/$param//;
-			$line =~ s/""//;
-
 		}
 
 		## Get the parameter set up
@@ -217,16 +173,14 @@ sub parsecfg {
 		push @configDB, $par;
 	}
 
-	return @configDB;
+	$self->{configDB} = [ @configDB ];
+	return 1;
 }
 
 ## Get Single Parameter
 sub getParam {
 	my $self = shift;
-	my %ret = {};
-	my @keys;
-	my @par = ();
-	@keys = @_;
+	my @keys = @_;
 
 	return $self->getNextParam( NAME=>$keys[0],
 		LINE_NUMBER=>-1 );
@@ -235,17 +189,16 @@ sub getParam {
 ## Get next Parameter	 
 sub getNextParam {
 	my $self = shift;
-        my %k = @_;
-	my %par = {};
-	
-	return undef unless ( $#_ > 0 );
+        my $k = { @_ };
+	my $par;
+
+	return if( not ( $k->{NAME} ) );
 
 	foreach $par ( @configDB ) {
 		my $tmp = $par->{NAME};
-		$tmp =~ s/^$k{NAME}//i;
 
-		if ( ( "$tmp" eq ""  ) &&
-				( $par->{LINE_NUMBER} > $k{LINE_NUMBER})  ) {
+		if( (lc( $tmp ) eq lc($k->{NAME})) and
+			( $par->{LINE_NUMBER} > $k->{LINE_NUMBER})  ) {
 			return $par;
 		};
 	};
@@ -255,9 +208,8 @@ sub getNextParam {
 
 sub checkParam {
 	my $self = shift;
-	my %k = @_;
-	my %par = {};
-	my $pnum;
+	my $k = { @_ };
+	my $par, $pnum;
 
 	return unless ( $#_ > 0 );
 
@@ -284,7 +236,7 @@ sub checkConfig {
 
 	foreach $par ( @parameters ) {
 		$ret = $self->ceckParam( $par );
-		return if ( $ret == -1 );
+		return if ( not $ret);
 	}
 
 	return 0;
@@ -296,4 +248,31 @@ sub getVersion {
 	return $VERSION;
 }
 
-___END___;
+# Autoload methods go after =cut, and are processed by the autosplit program.
+
+1;
+__END__
+# Below is the stub of documentation for your module. You better edit it!
+
+=head1 NAME
+
+OpenCA::Configuration - Perl extention to deal with config files.
+
+=head1 SYNOPSIS
+
+use OpenCA::Configuration;
+
+=head1 DESCRIPTION
+
+Sorry, no documentation available yet.
+
+=head1 AUTHOR
+
+Massimiliano Pala <madwolf@openca.org>
+
+=head1 SEE ALSO
+
+perl(1).
+
+=cut
+
