@@ -61,27 +61,35 @@
 ##    Last Modified: 28/04/1999
 ##
 
+use strict;
+
 package OpenCA::Configuration;
 
-$VERSION = '1.3.14';
+$OpenCA::Configuration::VERSION = '1.5.2a';
 
 # Preloaded methods go here.
 
 ## Define Error Messages for the Configuration Manager Errors
-my @configLines = ();
-my @configDB    = ();
+my %params = {
+	cnfLines => undef,
+	cnfDB => undef,
+};
 
 ## Create an instance of the Class
 sub new {
 	my $that = shift;
 	my $class = ref($that) || $that;
 
-	my $self = { configLines => [ @configLines ],
-		     configDB => [ @configDB ] };
-	bless $self;
+	my $self = {
+		%params,
+	};
 
-	$fileName = $keys[0];
-	if( "$fileName" ne "" ) {
+	bless $self, $class;
+
+	my @keys = @_ ;
+	my $fileName = $keys[0];
+
+	if( $fileName ne "" ) {
 		my $ret = $self->loadCfg ( $fileName );
 		return undef if ( not $ret );
 	}
@@ -92,35 +100,35 @@ sub new {
 ## Configuration Manager Functions
 sub loadCfg {
 	my $self = shift;
-	my $ret = 0;
-	my @keys; 
-	my @configLines;
-	@keys = @_;
+	my @keys = @_ ; 
 
-	$fileName = $keys[0];
+	my $temp;
+	my @configLines;
+
+	my $fileName = $keys[0];
 
 	open( FD, "$fileName" ) || return undef;
 	while( $temp = <FD> ) {
-		push @configLines, $temp;
+		push ( @configLines, $temp);
 	}
 	close(FD);
 
 	if( $self->parsecfg( @configLines ) ) {
-		$self->{configLines} = [ @configLines ];
+		$self->{cnfLines} = [ @configLines ];
 		return 1;
 	} else {
-		return;
+		return 0;
 	}
 }
 
 ## Parsing Function
 sub parsecfg {
 	my $self = shift;
-	my @keys;
-	my $num = -1;
-	@keys = @_;
+	my @keys = @_;
 
-	@configDB = ();
+	my @configDB = ();
+	my $num = -1;
+	my $line;
 	
 	foreach $line (@keys) {
 		my $paramName;
@@ -166,14 +174,14 @@ sub parsecfg {
 		}
 
 		## Get the parameter set up
-		$par = { NAME=>$paramName,
+		my $par = { NAME=>$paramName,
 		 	 LINE_NUMBER=>$num,
 		 	 VALUES=>[ @values ] };
 
-		push @configDB, $par;
+		push ( @configDB, $par);
 	}
 
-	$self->{configDB} = [ @configDB ];
+	$self->{cnfDB} = [ @configDB ];
 	return 1;
 }
 
@@ -194,7 +202,7 @@ sub getNextParam {
 
 	return if( not ( $k->{NAME} ) );
 
-	foreach $par ( @configDB ) {
+	foreach $par ( @{$self->{cnfDB}} ) {
 		my $tmp = $par->{NAME};
 
 		if( (lc( $tmp ) eq lc($k->{NAME})) and
@@ -209,9 +217,9 @@ sub getNextParam {
 sub checkParam {
 	my $self = shift;
 	my $k = { @_ };
-	my $par, $pnum;
+	my ( $par, $pnum );
 
-	return unless ( $#_ > 0 );
+	return unless ( exists $k->{NAME} );
 
 	$par = $self->getParam( $k->{NAME} );
 	return unless ( not ( keys %$par ));
@@ -231,10 +239,10 @@ sub checkParam {
 
 sub checkConfig {
 	my $self = shift;
-	my @parameters = @_;
-	my $ret;
+	my @keys = @_;
+	my ( $ret, $par );
 
-	foreach $par ( @parameters ) {
+	foreach $par ( @keys ) {
 		$ret = $self->ceckParam( $par );
 		return if ( not $ret);
 	}
@@ -245,7 +253,7 @@ sub checkConfig {
 sub getVersion {
 	my $self = shift;
 
-	return $VERSION;
+	return $OpenCA::Configuration::VERSION;
 }
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
