@@ -65,7 +65,7 @@ use strict;
 
 package OpenCA::Configuration;
 
-$OpenCA::Configuration::VERSION = '1.5.2a';
+$OpenCA::Configuration::VERSION = '1.5.3';
 
 # Preloaded methods go here.
 
@@ -89,7 +89,7 @@ sub new {
 	my @keys = @_ ;
 	my $fileName = $keys[0];
 
-	if( $fileName ne "" ) {
+	if( defined $fileName and $fileName ne "" ) {
 		my $ret = $self->loadCfg ( $fileName );
 		return undef if ( not $ret );
 	}
@@ -103,13 +103,31 @@ sub loadCfg {
 	my @keys = @_ ; 
 
 	my $temp;
+	my $temp2;
 	my @configLines;
+	my $sameLine;
 
 	my $fileName = $keys[0];
 
+	$sameLine = 0;
+	$temp2 = "";
 	open( FD, "$fileName" ) || return undef;
 	while( $temp = <FD> ) {
-		push ( @configLines, $temp);
+		if( $temp =~ /\\\n$/ ) {
+			$temp =~ s/\\\n$//;
+			$temp2 .= $temp;
+			$sameLine = 1;
+		} else {
+			if( $sameLine == 1 ) {
+				$temp2 .= $temp;
+				$temp = $temp2;
+				$sameLine = 0;
+				$temp2 = "";
+			}
+
+			$sameLine = 0;
+			push ( @configLines, $temp);
+		}
 	}
 	close(FD);
 
@@ -140,7 +158,8 @@ sub parsecfg {
 
 		## Trial line and discard Comments
 		chop($line);
-		next if ($line =~ /\#.*/)||($line eq "")||($line =~ /HASH.*/);
+		## next if ($line =~ /\#.*/)||($line eq "")||($line =~ /HASH.*/);
+		next if ($line =~ /\#.*/)||($line =~ /^\s*[\n\r]*$/)||($line =~ /HASH.*/);
 		$line =~ s/#.*//;
 		$line =~ s/^[\s]*//;
 		$line =~ s/(\r|\n)//g;
@@ -256,31 +275,4 @@ sub getVersion {
 	return $OpenCA::Configuration::VERSION;
 }
 
-# Autoload methods go after =cut, and are processed by the autosplit program.
-
 1;
-__END__
-# Below is the stub of documentation for your module. You better edit it!
-
-=head1 NAME
-
-OpenCA::Configuration - Perl extention to deal with config files.
-
-=head1 SYNOPSIS
-
-use OpenCA::Configuration;
-
-=head1 DESCRIPTION
-
-Sorry, no documentation available yet.
-
-=head1 AUTHOR
-
-Massimiliano Pala <madwolf@openca.org>
-
-=head1 SEE ALSO
-
-perl(1).
-
-=cut
-
